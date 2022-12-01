@@ -12,17 +12,18 @@ import Options from './../settings/Options'
  * @module Annotations
  **/
 export default class Annotations {
-  constructor(ctx) {
+  constructor(ctx, xyRatios) {
     this.ctx = ctx
     this.w = ctx.w
     this.graphics = new Graphics(this.ctx)
+    this.xyRatios = xyRatios
 
     if (this.w.globals.isBarHorizontal) {
       this.invertAxis = true
     }
 
     this.helpers = new Helpers(this)
-    this.xAxisAnnotations = new XAxisAnnotations(this)
+    this.xAxisAnnotations = new XAxisAnnotations(this, xyRatios)
     this.yAxisAnnotations = new YAxisAnnotations(this)
     this.pointsAnnotations = new PointsAnnotations(this)
 

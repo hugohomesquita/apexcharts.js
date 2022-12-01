@@ -2,13 +2,15 @@ import Utils from '../../utils/Utils'
 import Helpers from './Helpers'
 
 export default class XAnnotations {
-  constructor(annoCtx) {
+  constructor(annoCtx, xyRatios) {
     this.w = annoCtx.w
     this.annoCtx = annoCtx
+    this.xyRatios = xyRatios
 
     this.invertAxis = this.annoCtx.invertAxis
 
     this.helpers = new Helpers(this.annoCtx)
+    this.gridRect = this.w.globals.dom.baseEl.querySelector('.apexcharts-grid')
   }
 
   addXaxisAnnotation(anno, parent, index) {
@@ -63,6 +65,33 @@ export default class XAnnotations {
       parent.appendChild(rect.node)
       if (anno.id) {
         rect.node.classList.add(anno.id)
+      }
+      if (anno.click) {
+        rect.node.addEventListener('click', anno.click.bind(this, anno))
+      }
+      if (anno.selection) {
+        rect
+          .draggable({
+            minX: 0,
+            minY: 0,
+            maxX: w.globals.gridWidth,
+            maxY: w.globals.gridHeight
+          })
+          .selectize({
+            points: 'l, r',
+            pointSize: 8,
+            pointType: 'rect'
+          })
+          .resize({
+            constraint: {
+              minX: 0,
+              minY: 0,
+              maxX: w.globals.gridWidth,
+              maxY: w.globals.gridHeight
+            }
+          })
+          .on('resizedone', this.selectionDragging.bind(this, anno))
+          .on('dragend', this.selectionDragging.bind(this, anno))
       }
     }
 
@@ -120,5 +149,20 @@ export default class XAnnotations {
     })
 
     return elg
+  }
+
+  selectionDragging(anno, e) {
+    const xyRatios = this.xyRatios
+    const gridRectDim = this.gridRect.getBoundingClientRect()
+    const selectionRect = e.target.getBoundingClientRect()
+
+    const minX =
+      this.w.globals.xAxisScale.niceMin +
+      (selectionRect.left - gridRectDim.left) * xyRatios.xRatio
+    const maxX =
+      this.w.globals.xAxisScale.niceMin +
+      (selectionRect.right - gridRectDim.left) * xyRatios.xRatio
+
+    anno.selection.bind(this, { minX, maxX })()
   }
 }

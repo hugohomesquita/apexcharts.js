@@ -2915,20 +2915,15 @@
     }, {
       key: "selectionDragging",
       value: function selectionDragging(anno, e) {
-        var _this2 = this;
-
         var xyRatios = this.xyRatios;
         var gridRectDim = this.gridRect.getBoundingClientRect();
         var selectionRect = e.target.getBoundingClientRect();
-        clearTimeout(this.w.globals.selectionResizeTimer);
-        this.w.globals.selectionResizeTimer = window.setTimeout(function () {
-          var minX = _this2.w.globals.xAxisScale.niceMin + (selectionRect.left - gridRectDim.left) * xyRatios.xRatio;
-          var maxX = _this2.w.globals.xAxisScale.niceMin + (selectionRect.right - gridRectDim.left) * xyRatios.xRatio;
-          anno.selection.bind(_this2, {
-            minX: minX,
-            maxX: maxX
-          })();
-        }, 30);
+        var minX = this.w.globals.xAxisScale.niceMin + (selectionRect.left - gridRectDim.left) * xyRatios.xRatio;
+        var maxX = this.w.globals.xAxisScale.niceMin + (selectionRect.right - gridRectDim.left) * xyRatios.xRatio;
+        anno.selection.bind(this, {
+          minX: minX,
+          maxX: maxX
+        })();
       }
     }]);
 

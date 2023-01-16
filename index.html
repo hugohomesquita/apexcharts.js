@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Title</title>
+  <link rel="stylesheet" href="/dist/apexcharts.css">
+  <script src="/dist/apexcharts.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+
+    #chart {
+      width: 600px;
+      height: 400px;
+    }
+  </style>
+</head>
+<body>
+<div id="chart"></div>
+<div id="chartZoom"></div>
+<script>
+  const historico = [
+    {
+      "value": "65.54",
+      "timestamp": "2022-11-22T18:47:37Z",
+      "annotated": false,
+      "unitsAbbreviation": "m",
+      "good": true,
+      "questionable": false,
+      "substituted": false
+    }, {
+      "value": "55.01",
+      "timestamp": "2022-11-23T18:47:37Z",
+      "annotated": false,
+      "unitsAbbreviation": "m",
+      "good": true,
+      "questionable": false,
+      "substituted": false
+    }, {
+      "value": "5.63",
+      "timestamp": "2022-11-24T18:47:37Z",
+      "annotated": false,
+      "unitsAbbreviation": "m",
+      "good": true,
+      "questionable": false,
+      "substituted": false
+    }, {
+      "value": "54.5",
+      "timestamp": "2022-11-25T18:47:37Z",
+      "annotated": false,
+      "unitsAbbreviation": "m",
+      "good": true,
+      "questionable": false,
+      "substituted": false
+    }, {
+      "value": "29.73",
+      "timestamp": "2022-11-26T18:47:37Z",
+      "annotated": false,
+      "unitsAbbreviation": "m",
+      "good": true,
+      "questionable": false,
+      "substituted": false
+    }, {
+      "value": "11.27",
+      "timestamp": "2022-11-27T18:47:37Z",
+      "annotated": false,
+      "unitsAbbreviation": "m",
+      "good": true,
+      "questionable": false,
+      "substituted": false
+    }, {
+      "value": "98.54",
+      "timestamp": "2022-11-28T18:47:37Z",
+      "annotated": false,
+      "unitsAbbreviation": "m",
+      "good": true,
+      "questionable": false,
+      "substituted": false
+    }, {
+      "value": "7.11",
+      "timestamp": "2022-11-29T18:47:37Z",
+      "annotated": false,
+      "unitsAbbreviation": "m",
+      "good": true,
+      "questionable": false,
+      "substituted": false
+    }];
+  const options = {
+    series: [
+      {
+        name: "series-1",
+        data: historico.map((item) => {
+          return {
+            x: item.timestamp,
+            y: item.value
+          };
+        })
+      }
+    ],
+    chart: {
+      id: "chart",
+      height: 350,
+      type: "line",
+      zoom: {
+        enabled: false
+      },
+      selection: {
+        enabled: false,
+        type: "x",
+        fill: {
+          color: "#24292e",
+          opacity: 0.9
+        },
+        stroke: {
+          width: 1,
+          dashArray: 3,
+          color: "#24292e",
+          opacity: 0.8
+        },
+        xaxis: {
+          min: new Date("2022-11-25T18:47:37Z").getTime(),
+          max: new Date("2022-11-28T18:47:37Z").getTime()
+        }
+      },
+      toolbar: {
+        autoSelected: "selection",
+        show: false,
+        tools: {
+          selection: true
+        }
+      }
+    },
+    annotations: {
+      position: "front",
+      xaxis: [{
+        id: 1,
+        x: new Date("2022-11-25T00:00:00Z").getTime(),
+        x2: new Date("2022-11-26T00:00:00Z").getTime(),
+        strokeDashArray: 1,
+        borderColor: "#c2c2c2",
+        fillColor: "#ff0000",
+        opacity: 0.3,
+        offsetX: 0,
+        offsetY: 0,
+        selection: function(e) {
+          //console.log("selection", new Date(e.maxX).toISOString());
+        },
+        click: function(e) {
+          //console.log("annotation clicked", e);
+        }
+      },
+        {
+          id: 2,
+          x: new Date("2022-11-23T00:00:00Z").getTime(),
+          x2: new Date("2022-11-24T00:00:00Z").getTime(),
+          strokeDashArray: 1,
+          borderColor: "#c2c2c2",
+          fillColor: "#ff0000",
+          opacity: 0.3,
+          offsetX: 0,
+          offsetY: 0,
+          selection: function(e) {
+            // console.log("selection", e);
+          },
+          click: function(e) {
+            //console.log("annotation clicked", e);
+          }
+        },
+        {
+          id: 3,
+          x: new Date("2022-11-27T00:00:00Z").getTime(),
+          x2: new Date("2022-11-28T00:00:00Z").getTime(),
+          strokeDashArray: 1,
+          borderColor: "#c2c2c2",
+          fillColor: "#ff0000",
+          opacity: 0.3,
+          offsetX: 0,
+          offsetY: 0,
+          selection: function(e) {
+            // console.log("selection", e);
+          },
+          click: function(e) {
+            //console.log("annotation clicked", e);
+          }
+        }
+      ]
+    },
+    dataLabels: {
+      enabled: false
+    },
+    stroke: {
+      curve: "straight"
+    },
+    title: {
+      text: "Product Trends by Month",
+      align: "left"
+    },
+    grid: {
+      row: {
+        colors: ["#f3f3f3", "transparent"], // takes an array which will be repeated on columns
+        opacity: 0.5
+      }
+    },
+    tooltip: {
+      enabled: false
+    },
+    xaxis: {
+      type: "datetime",
+      labels: {
+        datetimeFormatter: {
+          year: "yyyy",
+          month: "MMM 'yy",
+          day: "dd/MM/yyyy",
+          hour: "HH:mm"
+        }
+      }
+    }
+  };
+
+  const chart = new ApexCharts(document.querySelector("#chart"), options);
+  chart.render();
+
+  const optionsZoom = {
+    series: [{
+      data: historico.map((item) => {
+        return {
+          x: item.timestamp,
+          y: item.value
+        };
+      })
+    }],
+    chart: {
+      id: "chartZoom",
+      height: 130,
+      type: "line",
+      selection: {
+        enabled: true
+      },
+      brush: {
+        target: "chart",
+        enabled: true
+      }
+    },
+    colors: ["#008FFB"],
+    fill: {
+      type: "solid",
+      gradient: {
+        opacityFrom: 0.91,
+        opacityTo: 0.1
+      }
+    },
+    xaxis: {
+      type: "datetime",
+      labels: {
+        datetimeFormatter: {
+          year: "yyyy",
+          month: "MMM 'yy",
+          day: "dd/MM/yyyy",
+          hour: "HH:mm"
+        }
+      }
+    },
+    yaxis: {
+      tickAmount: 2
+    }
+  };
+
+  const chartZoom = new ApexCharts(document.querySelector("#chartZoom"), optionsZoom);
+  chartZoom.render();
+</script>
+</body>
+</html>

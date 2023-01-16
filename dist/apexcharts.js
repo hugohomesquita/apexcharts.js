@@ -2805,6 +2805,8 @@
     _createClass(XAnnotations, [{
       key: "addXaxisAnnotation",
       value: function addXaxisAnnotation(anno, parent, index) {
+        var _this = this;
+
         var w = this.w;
         var x1 = this.helpers.getX1X2('x1', anno);
         var x2;
@@ -2858,10 +2860,27 @@
           }
 
           if (anno.selection) {
+            var minX1 = 0;
+            var maxX1 = w.globals.gridWidth;
+            this.w.config.annotations.xaxis.forEach(function (a) {
+              if (a.id != anno.id) {
+                if (a.x < anno.x) {
+                  var aX2 = _this.helpers.getX1X2('x2', a);
+
+                  minX1 = Math.max(minX1, aX2);
+                }
+
+                if (a.x2 > anno.x2) {
+                  var aX1 = _this.helpers.getX1X2('x1', a);
+
+                  maxX1 = Math.min(maxX1, aX1);
+                }
+              }
+            });
             rect.draggable({
-              minX: 0,
+              minX: minX1,
               minY: 0,
-              maxX: w.globals.gridWidth,
+              maxX: maxX1,
               maxY: w.globals.gridHeight
             }).selectize({
               points: 'l, r',
@@ -2869,9 +2888,9 @@
               pointType: 'rect'
             }).resize({
               constraint: {
-                minX: 0,
+                minX: minX1,
                 minY: 0,
-                maxX: w.globals.gridWidth,
+                maxX: maxX1,
                 maxY: w.globals.gridHeight
               }
             }).on('resizedone', this.selectionDragging.bind(this, anno)).on('dragend', this.selectionDragging.bind(this, anno));
@@ -2901,14 +2920,14 @@
     }, {
       key: "drawXAxisAnnotations",
       value: function drawXAxisAnnotations() {
-        var _this = this;
+        var _this2 = this;
 
         var w = this.w;
         var elg = this.annoCtx.graphics.group({
           class: 'apexcharts-xaxis-annotations'
         });
         w.config.annotations.xaxis.map(function (anno, index) {
-          _this.addXaxisAnnotation(anno, elg.node, index);
+          _this2.addXaxisAnnotation(anno, elg.node, index);
         });
         return elg;
       }

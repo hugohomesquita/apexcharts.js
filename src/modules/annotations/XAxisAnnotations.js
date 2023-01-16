@@ -70,11 +70,27 @@ export default class XAnnotations {
         rect.node.addEventListener('click', anno.click.bind(this, anno))
       }
       if (anno.selection) {
+        let minX1 = 0
+        let maxX1 = w.globals.gridWidth
+
+        this.w.config.annotations.xaxis.forEach(a => {
+          if(a.id != anno.id){
+            if(a.x < anno.x){
+              const aX2 = this.helpers.getX1X2('x2', a)
+              minX1 = Math.max(minX1, aX2)
+            }
+            if(a.x2 > anno.x2){
+              const aX1 = this.helpers.getX1X2('x1', a)
+              maxX1 = Math.min(maxX1, aX1)
+            }
+          }
+        })
+
         rect
           .draggable({
-            minX: 0,
+            minX: minX1,
             minY: 0,
-            maxX: w.globals.gridWidth,
+            maxX: maxX1,
             maxY: w.globals.gridHeight
           })
           .selectize({
@@ -84,9 +100,9 @@ export default class XAnnotations {
           })
           .resize({
             constraint: {
-              minX: 0,
+              minX: minX1,
               minY: 0,
-              maxX: w.globals.gridWidth,
+              maxX: maxX1,
               maxY: w.globals.gridHeight
             }
           })
@@ -137,6 +153,7 @@ export default class XAnnotations {
     // after placing the annotations on svg, set any vertically placed annotations
     this.annoCtx.helpers.setOrientations(anno, index)
   }
+
   drawXAxisAnnotations() {
     let w = this.w
 

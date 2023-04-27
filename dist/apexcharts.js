@@ -1,5 +1,5 @@
 /*!
- * ApexCharts v3.36.4
+ * ApexCharts v3.36.5
  * (c) 2018-2023 ApexCharts
  * Released under the MIT License.
  */
@@ -2877,10 +2877,11 @@
                 }
               }
             });
+            var offsetTime = 1;
             rect.draggable({
-              minX: minX1,
+              minX: minX1 + offsetTime,
               minY: 0,
-              maxX: maxX1,
+              maxX: maxX1 - offsetTime,
               maxY: w.globals.gridHeight
             }).selectize({
               points: 'l, r',
@@ -2888,9 +2889,9 @@
               pointType: 'rect'
             }).resize({
               constraint: {
-                minX: minX1,
+                minX: minX1 + offsetTime,
                 minY: 0,
-                maxX: maxX1,
+                maxX: maxX1 - offsetTime,
                 maxY: w.globals.gridHeight
               }
             }).on('resizedone', this.selectionDragging.bind(this, anno)).on('dragend', this.selectionDragging.bind(this, anno));
@@ -15180,11 +15181,6 @@
         var w = this.w;
         var xyRatios = this.xyRatios;
         var selRect = this.selectionRect;
-        var timerInterval = 0;
-
-        if (type === 'resizing') {
-          timerInterval = 30;
-        } // update selection when selection rect is dragged
 
 
         var getSelAttr = function getSelAttr(attr) {
@@ -15225,7 +15221,7 @@
             if (w.config.chart.brush.enabled && w.config.chart.events.brushScrolled !== undefined) {
               w.config.chart.events.brushScrolled(_this3.ctx, xyAxis);
             }
-          }, timerInterval);
+          }, 3000);
         }
       }
     }, {

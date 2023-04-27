@@ -86,13 +86,11 @@ export default class XAnnotations {
           }
         })
 
-        const offsetTime = 1
-
         rect
           .draggable({
-            minX: minX1 + offsetTime,
+            minX: minX1,
             minY: 0,
-            maxX: maxX1 - offsetTime,
+            maxX: maxX1,
             maxY: w.globals.gridHeight
           })
           .selectize({
@@ -102,9 +100,9 @@ export default class XAnnotations {
           })
           .resize({
             constraint: {
-              minX: minX1 + offsetTime,
+              minX: minX1,
               minY: 0,
-              maxX: maxX1 - offsetTime,
+              maxX: maxX1,
               maxY: w.globals.gridHeight
             }
           })

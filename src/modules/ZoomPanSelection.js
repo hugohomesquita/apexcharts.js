@@ -492,7 +492,7 @@ export default class ZoomPanSelection extends Toolbar {
         ) {
           w.config.chart.events.brushScrolled(this.ctx, xyAxis)
         }
-      }, 3000)
+      }, timerInterval)
     }
   }
 

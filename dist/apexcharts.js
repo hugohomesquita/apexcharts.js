@@ -1,6 +1,6 @@
 /*!
  * ApexCharts v3.36.6
- * (c) 2018-2023 ApexCharts
+ * (c) 2018-2025 ApexCharts
  * Released under the MIT License.
  */
 (function (global, factory) {
@@ -14815,7 +14815,7 @@
       _this.w = ctx.w;
       _this.dragged = false;
       _this.graphics = new Graphics(_this.ctx);
-      _this.eventList = ['mousedown', 'mouseleave', 'mousemove', 'touchstart', 'touchmove', 'mouseup', 'touchend'];
+      _this.eventList = ['mousedown', 'mouseleave', 'mousemove', 'touchstart', 'touchmove', 'mouseup', 'touchend', 'wheel'];
       _this.clientX = 0;
       _this.clientY = 0;
       _this.startX = 0;
@@ -14825,6 +14825,9 @@
       _this.endY = 0;
       _this.dragY = 0;
       _this.moveDirection = 'none';
+      _this.debounceTimer = null;
+      _this.debounceDelay = 100;
+      _this.wheelDelay = 400;
       return _this;
     }
 
@@ -14842,8 +14845,8 @@
         this.gridRect = w.globals.dom.baseEl.querySelector('.apexcharts-grid');
         this.zoomRect.node.classList.add('apexcharts-zoom-rect');
         this.selectionRect.node.classList.add('apexcharts-selection-rect');
-        w.globals.dom.elGraphical.add(this.zoomRect);
-        w.globals.dom.elGraphical.add(this.selectionRect);
+        w.globals.dom.Paper.add(this.zoomRect);
+        w.globals.dom.Paper.add(this.selectionRect);
 
         if (w.config.chart.selection.type === 'x') {
           this.slDraggableRect = this.selectionRect.draggable({
@@ -14870,6 +14873,13 @@
             passive: true
           });
         });
+
+        if (w.config.chart.zoom.enabled && w.config.chart.zoom.allowMouseWheelZoom) {
+          this.hoverArea.addEventListener('wheel', me.mouseWheelEvent.bind(me), {
+            capture: false,
+            passive: false
+          });
+        }
       } // remove the event listeners which were previously added on hover area
 
     }, {
@@ -14889,7 +14899,6 @@
       key: "svgMouseEvents",
       value: function svgMouseEvents(xyRatios, e) {
         var w = this.w;
-        var me = this;
         var toolbar = this.ctx.toolbar;
         var zoomtype = w.globals.zoomEnabled ? w.config.chart.zoom.type : w.config.chart.selection.type;
         var autoSelected = w.config.chart.toolbar.autoSelected;
@@ -14912,36 +14921,36 @@
           pc = e.target.parentNode.classList;
         }
 
-        var falsePositives = tc.contains('apexcharts-selection-rect') || tc.contains('apexcharts-legend-marker') || tc.contains('apexcharts-legend-text') || pc && pc.contains('apexcharts-toolbar');
+        var falsePositives = tc.contains('apexcharts-legend-marker') || tc.contains('apexcharts-legend-text') || pc && pc.contains('apexcharts-toolbar');
         if (falsePositives) return;
-        me.clientX = e.type === 'touchmove' || e.type === 'touchstart' ? e.touches[0].clientX : e.type === 'touchend' ? e.changedTouches[0].clientX : e.clientX;
-        me.clientY = e.type === 'touchmove' || e.type === 'touchstart' ? e.touches[0].clientY : e.type === 'touchend' ? e.changedTouches[0].clientY : e.clientY;
+        this.clientX = e.type === 'touchmove' || e.type === 'touchstart' ? e.touches[0].clientX : e.type === 'touchend' ? e.changedTouches[0].clientX : e.clientX;
+        this.clientY = e.type === 'touchmove' || e.type === 'touchstart' ? e.touches[0].clientY : e.type === 'touchend' ? e.changedTouches[0].clientY : e.clientY;
 
-        if (e.type === 'mousedown' && e.which === 1) {
-          var gridRectDim = me.gridRect.getBoundingClientRect();
-          me.startX = me.clientX - gridRectDim.left;
-          me.startY = me.clientY - gridRectDim.top;
-          me.dragged = false;
-          me.w.globals.mousedown = true;
+        if (e.type === 'mousedown' && e.which === 1 || e.type === 'touchstart') {
+          var gridRectDim = this.gridRect.getBoundingClientRect();
+          this.startX = this.clientX - gridRectDim.left - w.globals.barPadForNumericAxis;
+          this.startY = this.clientY - gridRectDim.top;
+          this.dragged = false;
+          this.w.globals.mousedown = true;
         }
 
         if (e.type === 'mousemove' && e.which === 1 || e.type === 'touchmove') {
-          me.dragged = true;
+          this.dragged = true;
 
           if (w.globals.panEnabled) {
             w.globals.selection = null;
 
-            if (me.w.globals.mousedown) {
-              me.panDragging({
-                context: me,
+            if (this.w.globals.mousedown) {
+              this.panDragging({
+                context: this,
                 zoomtype: zoomtype,
                 xyRatios: xyRatios
               });
             }
           } else {
-            if (me.w.globals.mousedown && w.globals.zoomEnabled || me.w.globals.mousedown && w.globals.selectionEnabled) {
-              me.selection = me.selectionDrawing({
-                context: me,
+            if (this.w.globals.mousedown && w.globals.zoomEnabled || this.w.globals.mousedown && w.globals.selectionEnabled) {
+              this.selection = this.selectionDrawing({
+                context: this,
                 zoomtype: zoomtype
               });
             }
@@ -14949,37 +14958,123 @@
         }
 
         if (e.type === 'mouseup' || e.type === 'touchend' || e.type === 'mouseleave') {
-          // we will be calling getBoundingClientRect on each mousedown/mousemove/mouseup
-          var _gridRectDim = me.gridRect.getBoundingClientRect();
-
-          if (me.w.globals.mousedown) {
-            // user released the drag, now do all the calculations
-            me.endX = me.clientX - _gridRectDim.left;
-            me.endY = me.clientY - _gridRectDim.top;
-            me.dragX = Math.abs(me.endX - me.startX);
-            me.dragY = Math.abs(me.endY - me.startY);
-
-            if (w.globals.zoomEnabled || w.globals.selectionEnabled) {
-              me.selectionDrawn({
-                context: me,
-                zoomtype: zoomtype
-              });
-            }
-
-            if (w.globals.panEnabled && w.config.xaxis.convertedCatToNumeric) {
-              me.delayedPanScrolled();
-            }
-          }
-
-          if (w.globals.zoomEnabled) {
-            me.hideSelectionRect(this.selectionRect);
-          }
-
-          me.dragged = false;
-          me.w.globals.mousedown = false;
+          this.handleMouseUp({
+            zoomtype: zoomtype
+          });
         }
 
         this.makeSelectionRectDraggable();
+      }
+    }, {
+      key: "handleMouseUp",
+      value: function handleMouseUp(_ref2) {
+        var zoomtype = _ref2.zoomtype,
+            isResized = _ref2.isResized;
+        var w = this.w; // we will be calling getBoundingClientRect on each mousedown/mousemove/mouseup
+
+        var gridRectDim = this.gridRect.getBoundingClientRect();
+
+        if (gridRectDim && (this.w.globals.mousedown || isResized)) {
+          // user released the drag, now do all the calculations
+          this.endX = this.clientX - gridRectDim.left - w.globals.barPadForNumericAxis;
+          this.endY = this.clientY - gridRectDim.top;
+          this.dragX = Math.abs(this.endX - this.startX);
+          this.dragY = Math.abs(this.endY - this.startY);
+
+          if (w.globals.zoomEnabled || w.globals.selectionEnabled) {
+            this.selectionDrawn({
+              context: this,
+              zoomtype: zoomtype
+            });
+          } // if (w.globals.panEnabled && w.config.xaxis.convertedCatToNumeric) {
+          //   this.delayedPanScrolled()
+          // }
+
+        }
+
+        if (w.globals.zoomEnabled) {
+          this.hideSelectionRect(this.selectionRect);
+        }
+
+        this.dragged = false;
+        this.w.globals.mousedown = false;
+      }
+    }, {
+      key: "mouseWheelEvent",
+      value: function mouseWheelEvent(e) {
+        var _this3 = this;
+
+        var w = this.w;
+        e.preventDefault();
+        var now = Date.now(); // Execute immediately if it's the first action or enough time has passed
+
+        if (now - w.globals.lastWheelExecution > this.wheelDelay) {
+          this.executeMouseWheelZoom(e);
+          w.globals.lastWheelExecution = now;
+        }
+
+        if (this.debounceTimer) clearTimeout(this.debounceTimer);
+        this.debounceTimer = setTimeout(function () {
+          if (now - w.globals.lastWheelExecution > _this3.wheelDelay) {
+            _this3.executeMouseWheelZoom(e);
+
+            w.globals.lastWheelExecution = now;
+          }
+        }, this.debounceDelay);
+      }
+    }, {
+      key: "executeMouseWheelZoom",
+      value: function executeMouseWheelZoom(e) {
+        var w = this.w;
+        this.minX = w.globals.isRangeBar ? w.globals.minY : w.globals.minX;
+        this.maxX = w.globals.isRangeBar ? w.globals.maxY : w.globals.maxX; // Calculate the relative position of the mouse on the chart
+
+        var gridRectDim = this.gridRect.getBoundingClientRect();
+        if (!gridRectDim) return;
+        var mouseX = (e.clientX - gridRectDim.left) / gridRectDim.width;
+        var currentMinX = this.minX;
+        var currentMaxX = this.maxX;
+        var totalX = currentMaxX - currentMinX; // Determine zoom factor
+
+        var zoomFactorIn = 0.5;
+        var zoomFactorOut = 1.5;
+        var zoomRange;
+        var newMinX, newMaxX;
+
+        if (e.deltaY < 0) {
+          // Zoom In
+          zoomRange = zoomFactorIn * totalX;
+          var midPoint = currentMinX + mouseX * totalX;
+          newMinX = midPoint - zoomRange / 2;
+          newMaxX = midPoint + zoomRange / 2;
+        } else {
+          // Zoom Out
+          zoomRange = zoomFactorOut * totalX;
+          newMinX = currentMinX - zoomRange / 2;
+          newMaxX = currentMaxX + zoomRange / 2;
+        } // Constrain within original chart bounds
+
+
+        if (!w.globals.isRangeBar) {
+          newMinX = Math.max(newMinX, w.globals.initialMinX);
+          newMaxX = Math.min(newMaxX, w.globals.initialMaxX); // Ensure minimum range
+
+          var minRange = (w.globals.initialMaxX - w.globals.initialMinX) * 0.01;
+
+          if (newMaxX - newMinX < minRange) {
+            var _midPoint = (newMinX + newMaxX) / 2;
+
+            newMinX = _midPoint - minRange / 2;
+            newMaxX = _midPoint + minRange / 2;
+          }
+        }
+
+        var newMinXMaxX = this._getNewMinXMaxX(newMinX, newMaxX); // Apply zoom if valid
+
+
+        if (!isNaN(newMinXMaxX.minX) && !isNaN(newMinXMaxX.maxX)) {
+          this.zoomUpdateOptions(newMinXMaxX.minX, newMinXMaxX.maxX);
+        }
       }
     }, {
       key: "makeSelectionRectDraggable",
@@ -15011,18 +15106,28 @@
 
         if (!w.globals.zoomEnabled) {
           if (typeof w.globals.selection !== 'undefined' && w.globals.selection !== null) {
-            this.drawSelectionRect(w.globals.selection);
+            this.drawSelectionRect(_objectSpread2(_objectSpread2({}, w.globals.selection), {}, {
+              translateX: w.globals.translateX,
+              translateY: w.globals.translateY
+            }));
           } else {
             if (w.config.chart.selection.xaxis.min !== undefined && w.config.chart.selection.xaxis.max !== undefined) {
               var x = (w.config.chart.selection.xaxis.min - w.globals.minX) / xyRatios.xRatio;
               var width = w.globals.gridWidth - (w.globals.maxX - w.config.chart.selection.xaxis.max) / xyRatios.xRatio - x;
+
+              if (w.globals.isRangeBar) {
+                // rangebars put datetime data in y axis
+                x = (w.config.chart.selection.xaxis.min - w.globals.yAxisScale[0].niceMin) / xyRatios.invertedYRatio;
+                width = (w.config.chart.selection.xaxis.max - w.config.chart.selection.xaxis.min) / xyRatios.invertedYRatio;
+              }
+
               var selectionRect = {
                 x: x,
                 y: 0,
                 width: width,
                 height: w.globals.gridHeight,
-                translateX: 0,
-                translateY: 0,
+                translateX: w.globals.translateX,
+                translateY: w.globals.translateY,
                 selectionEnabled: true
               };
               this.drawSelectionRect(selectionRect);
@@ -15043,15 +15148,15 @@
       }
     }, {
       key: "drawSelectionRect",
-      value: function drawSelectionRect(_ref2) {
-        var x = _ref2.x,
-            y = _ref2.y,
-            width = _ref2.width,
-            height = _ref2.height,
-            _ref2$translateX = _ref2.translateX,
-            translateX = _ref2$translateX === void 0 ? 0 : _ref2$translateX,
-            _ref2$translateY = _ref2.translateY,
-            translateY = _ref2$translateY === void 0 ? 0 : _ref2$translateY;
+      value: function drawSelectionRect(_ref3) {
+        var x = _ref3.x,
+            y = _ref3.y,
+            width = _ref3.width,
+            height = _ref3.height,
+            _ref3$translateX = _ref3.translateX,
+            translateX = _ref3$translateX === void 0 ? 0 : _ref3$translateX,
+            _ref3$translateY = _ref3.translateY,
+            translateY = _ref3$translateY === void 0 ? 0 : _ref3$translateY;
         var w = this.w;
         var zoomRect = this.zoomRect;
         var selectionRect = this.selectionRect;
@@ -15111,9 +15216,9 @@
       }
     }, {
       key: "selectionDrawing",
-      value: function selectionDrawing(_ref3) {
-        var context = _ref3.context,
-            zoomtype = _ref3.zoomtype;
+      value: function selectionDrawing(_ref4) {
+        var context = _ref4.context,
+            zoomtype = _ref4.zoomtype;
         var w = this.w;
         var me = context;
         var gridRectDim = this.gridRect.getBoundingClientRect();
@@ -15121,26 +15226,31 @@
         var startY = me.startY;
         var inversedX = false;
         var inversedY = false;
-        var selectionWidth = me.clientX - gridRectDim.left - startX;
-        var selectionHeight = me.clientY - gridRectDim.top - startY;
-        var selectionRect = {};
+        var left = me.clientX - gridRectDim.left - w.globals.barPadForNumericAxis;
+        var top = me.clientY - gridRectDim.top;
+        var selectionWidth = left - startX;
+        var selectionHeight = top - startY;
+        var selectionRect = {
+          translateX: w.globals.translateX,
+          translateY: w.globals.translateY
+        };
 
         if (Math.abs(selectionWidth + startX) > w.globals.gridWidth) {
           // user dragged the mouse outside drawing area to the right
           selectionWidth = w.globals.gridWidth - startX;
-        } else if (me.clientX - gridRectDim.left < 0) {
+        } else if (left < 0) {
           // user dragged the mouse outside drawing area to the left
           selectionWidth = startX;
         } // inverse selection X
 
 
-        if (startX > me.clientX - gridRectDim.left) {
+        if (startX > left) {
           inversedX = true;
           selectionWidth = Math.abs(selectionWidth);
         } // inverse selection Y
 
 
-        if (startY > me.clientY - gridRectDim.top) {
+        if (startY > top) {
           inversedY = true;
           selectionHeight = Math.abs(selectionHeight);
         }
@@ -15168,6 +15278,10 @@
           };
         }
 
+        selectionRect = _objectSpread2(_objectSpread2({}, selectionRect), {}, {
+          translateX: w.globals.translateX,
+          translateY: w.globals.translateY
+        });
         me.drawSelectionRect(selectionRect);
         me.selectionDragging('resizing');
         return selectionRect;
@@ -15175,9 +15289,32 @@
     }, {
       key: "selectionDragging",
       value: function selectionDragging(type, e) {
-        var _this3 = this;
+        var _this4 = this;
 
         var w = this.w;
+        if (!e) return;
+        e.preventDefault(); // const { handler, box } = e.detail
+        //
+        // let { x, y } = box
+        //
+        // if (x < this.constraints.x) {
+        //   x = this.constraints.x
+        // }
+        //
+        // if (y < this.constraints.y) {
+        //   y = this.constraints.y
+        // }
+        //
+        // if (box.x2 > this.constraints.x2) {
+        //   x = this.constraints.x2 - box.w
+        // }
+        //
+        // if (box.y2 > this.constraints.y2) {
+        //   y = this.constraints.y2 - box.h
+        // }
+        //
+        // handler.move(x, y)
+
         var xyRatios = this.xyRatios;
         var selRect = this.selectionRect;
         var timerInterval = 0;
@@ -15203,13 +15340,25 @@
           // a small debouncer is required when resizing to avoid freezing the chart
           clearTimeout(this.w.globals.selectionResizeTimer);
           this.w.globals.selectionResizeTimer = window.setTimeout(function () {
-            var gridRectDim = _this3.gridRect.getBoundingClientRect();
+            var gridRectDim = _this4.gridRect.getBoundingClientRect();
 
             var selectionRect = selRect.node.getBoundingClientRect();
-            var minX = w.globals.xAxisScale.niceMin + (selectionRect.left - gridRectDim.left) * xyRatios.xRatio;
-            var maxX = w.globals.xAxisScale.niceMin + (selectionRect.right - gridRectDim.left) * xyRatios.xRatio;
-            var minY = w.globals.yAxisScale[0].niceMin + (gridRectDim.bottom - selectionRect.bottom) * xyRatios.yRatio[0];
-            var maxY = w.globals.yAxisScale[0].niceMax - (selectionRect.top - gridRectDim.top) * xyRatios.yRatio[0];
+            var minX, maxX, minY, maxY;
+
+            if (!w.globals.isRangeBar) {
+              // normal XY charts
+              minX = w.globals.xAxisScale.niceMin + (selectionRect.left - gridRectDim.left) * xyRatios.xRatio;
+              maxX = w.globals.xAxisScale.niceMin + (selectionRect.right - gridRectDim.left) * xyRatios.xRatio;
+              minY = w.globals.yAxisScale[0].niceMin + (gridRectDim.bottom - selectionRect.bottom) * xyRatios.yRatio[0];
+              maxY = w.globals.yAxisScale[0].niceMax - (selectionRect.top - gridRectDim.top) * xyRatios.yRatio[0];
+            } else {
+              // rangeBars use y for datetime
+              minX = w.globals.yAxisScale[0].niceMin + (selectionRect.left - gridRectDim.left) * xyRatios.invertedYRatio;
+              maxX = w.globals.yAxisScale[0].niceMin + (selectionRect.right - gridRectDim.left) * xyRatios.invertedYRatio;
+              minY = 0;
+              maxY = 1;
+            }
+
             var xyAxis = {
               xaxis: {
                 min: minX,
@@ -15220,46 +15369,41 @@
                 max: maxY
               }
             };
-            w.config.chart.events.selection(_this3.ctx, xyAxis);
+            w.config.chart.events.selection(_this4.ctx, xyAxis);
 
             if (w.config.chart.brush.enabled && w.config.chart.events.brushScrolled !== undefined) {
-              w.config.chart.events.brushScrolled(_this3.ctx, xyAxis);
+              w.config.chart.events.brushScrolled(_this4.ctx, xyAxis);
             }
           }, timerInterval);
         }
       }
     }, {
       key: "selectionDrawn",
-      value: function selectionDrawn(_ref4) {
-        var context = _ref4.context,
-            zoomtype = _ref4.zoomtype;
+      value: function selectionDrawn(_ref5) {
+        var context = _ref5.context,
+            zoomtype = _ref5.zoomtype;
         var w = this.w;
         var me = context;
         var xyRatios = this.xyRatios;
-        var toolbar = this.ctx.toolbar;
+        var toolbar = this.ctx.toolbar; // Use boundingRect for final selection area
 
-        if (me.startX > me.endX) {
-          var tempX = me.startX;
-          me.startX = me.endX;
-          me.endX = tempX;
-        }
+        var selRect = w.globals.zoomEnabled ? me.zoomRect.node.getBoundingClientRect() : me.selectionRect.node.getBoundingClientRect();
+        var gridRectDim = me.gridRect.getBoundingClientRect(); // Local coords in the chart's grid
 
-        if (me.startY > me.endY) {
-          var tempY = me.startY;
-          me.startY = me.endY;
-          me.endY = tempY;
-        }
+        var localStartX = selRect.left - gridRectDim.left - w.globals.barPadForNumericAxis;
+        var localEndX = selRect.right - gridRectDim.left - w.globals.barPadForNumericAxis;
+        selRect.top - gridRectDim.top;
+        selRect.bottom - gridRectDim.top; // Convert those local coords to actual data values
 
-        var xLowestValue = undefined;
-        var xHighestValue = undefined;
+        var xLowestValue, xHighestValue;
 
         if (!w.globals.isRangeBar) {
-          xLowestValue = w.globals.xAxisScale.niceMin + me.startX * xyRatios.xRatio;
-          xHighestValue = w.globals.xAxisScale.niceMin + me.endX * xyRatios.xRatio;
+          xLowestValue = w.globals.xAxisScale.niceMin + localStartX * xyRatios.xRatio;
+          xHighestValue = w.globals.xAxisScale.niceMin + localEndX * xyRatios.xRatio;
         } else {
-          xLowestValue = w.globals.yAxisScale[0].niceMin + me.startX * xyRatios.invertedYRatio;
-          xHighestValue = w.globals.yAxisScale[0].niceMin + me.endX * xyRatios.invertedYRatio;
-        } // TODO: we will consider the 1st y axis values here for getting highest and lowest y
+          xLowestValue = w.globals.yAxisScale[0].niceMin + localStartX * xyRatios.invertedYRatio;
+          xHighestValue = w.globals.yAxisScale[0].niceMin + localEndX * xyRatios.invertedYRatio;
+        } // For Y values, pick from the first y-axis, but handle multi-axis
 
 
         var yHighestValue = [];
@@ -15267,7 +15411,7 @@
         w.config.yaxis.forEach(function (yaxe, index) {
           yHighestValue.push(w.globals.yAxisScale[index].niceMax - xyRatios.yRatio[index] * me.startY);
           yLowestValue.push(w.globals.yAxisScale[index].niceMax - xyRatios.yRatio[index] * me.endY);
-        });
+        }); // Only apply if user actually dragged far enough to consider it a selection
 
         if (me.dragged && (me.dragX > 10 || me.dragY > 10) && xLowestValue !== xHighestValue) {
           if (w.globals.zoomEnabled) {
@@ -15300,13 +15444,6 @@
               yaxis.forEach(function (yaxe, index) {
                 yaxis[index].min = yLowestValue[index];
                 yaxis[index].max = yHighestValue[index];
-              });
-            }
-
-            if (w.config.chart.zoom.autoScaleYaxis) {
-              var scale = new Range$1(me.ctx);
-              yaxis = scale.autoScaleY(me.ctx, yaxis, {
-                xaxis: xaxis
               });
             }
 
@@ -15364,15 +15501,15 @@
       }
     }, {
       key: "panDragging",
-      value: function panDragging(_ref5) {
-        var context = _ref5.context;
+      value: function panDragging(_ref6) {
+        var context = _ref6.context;
         var w = this.w;
         var me = context; // check to make sure there is data to compare against
 
         if (typeof w.globals.lastClientPosition.x !== 'undefined') {
           // get the change from last position to this position
           var deltaX = w.globals.lastClientPosition.x - me.clientX;
-          var deltaY = w.globals.lastClientPosition.y - me.clientY; // check which direction had the highest amplitude and then figure out direction by checking if the value is greater or less than zero
+          var deltaY = w.globals.lastClientPosition.y - me.clientY; // check which direction had the highest amplitude
 
           if (Math.abs(deltaX) > Math.abs(deltaY) && deltaX > 0) {
             this.moveDirection = 'left';
@@ -15391,37 +15528,31 @@
           y: me.clientY
         };
         var xLowestValue = w.globals.isRangeBar ? w.globals.minY : w.globals.minX;
-        var xHighestValue = w.globals.isRangeBar ? w.globals.maxY : w.globals.maxX; // on a category, we don't pan continuosly as it causes bugs
+        var xHighestValue = w.globals.isRangeBar ? w.globals.maxY : w.globals.maxX; // removed delayedPanScrolled as it doesn't seem to cause bugs anymore in convertedCatToNumeric
+        // if (!w.config.xaxis.convertedCatToNumeric) {
 
-        if (!w.config.xaxis.convertedCatToNumeric) {
-          me.panScrolled(xLowestValue, xHighestValue);
-        }
-      }
-    }, {
-      key: "delayedPanScrolled",
-      value: function delayedPanScrolled() {
-        var w = this.w;
-        var newMinX = w.globals.minX;
-        var newMaxX = w.globals.maxX;
-        var centerX = (w.globals.maxX - w.globals.minX) / 2;
+        me.panScrolled(xLowestValue, xHighestValue); // }
+      } // delayedPanScrolled() {
+      //   const w = this.w
+      //   let newMinX = w.globals.minX
+      //   let newMaxX = w.globals.maxX
+      //   const centerX = (w.globals.maxX - w.globals.minX) / 2
+      //   if (this.moveDirection === 'left') {
+      //     newMinX = w.globals.minX + centerX
+      //     newMaxX = w.globals.maxX + centerX
+      //   } else if (this.moveDirection === 'right') {
+      //     newMinX = w.globals.minX - centerX
+      //     newMaxX = w.globals.maxX - centerX
+      //   }
+      //   newMinX = Math.floor(newMinX)
+      //   newMaxX = Math.floor(newMaxX)
+      //   this.updateScrolledChart(
+      //     { xaxis: { min: newMinX, max: newMaxX } },
+      //     newMinX,
+      //     newMaxX
+      //   )
+      // }
 
-        if (this.moveDirection === 'left') {
-          newMinX = w.globals.minX + centerX;
-          newMaxX = w.globals.maxX + centerX;
-        } else if (this.moveDirection === 'right') {
-          newMinX = w.globals.minX - centerX;
-          newMaxX = w.globals.maxX - centerX;
-        }
-
-        newMinX = Math.floor(newMinX);
-        newMaxX = Math.floor(newMaxX);
-        this.updateScrolledChart({
-          xaxis: {
-            min: newMinX,
-            max: newMaxX
-          }
-        }, newMinX, newMaxX);
-      }
     }, {
       key: "panScrolled",
       value: function panScrolled(xLowestValue, xHighestValue) {
@@ -15457,19 +15588,8 @@
           min: xLowestValue,
           max: xHighestValue
         };
-
-        if (w.config.chart.zoom.autoScaleYaxis) {
-          var scale = new Range$1(this.ctx);
-          yaxis = scale.autoScaleY(this.ctx, yaxis, {
-            xaxis: xaxis
-          });
-        }
-
         var options = {
-          xaxis: {
-            min: xLowestValue,
-            max: xHighestValue
-          }
+          xaxis: xaxis
         };
 
         if (!w.config.chart.group) {
@@ -15488,12 +15608,14 @@
         this.ctx.updateHelpers._updateOptions(options, false, false);
 
         if (typeof w.config.chart.events.scrolled === 'function') {
-          w.config.chart.events.scrolled(this.ctx, {
+          var args = {
             xaxis: {
               min: xLowestValue,
               max: xHighestValue
             }
-          });
+          };
+          w.config.chart.events.scrolled(this.ctx, args);
+          this.ctx.events.fireEvent('scrolled', args);
         }
       }
     }]);
